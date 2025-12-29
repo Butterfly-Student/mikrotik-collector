@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -10,71 +11,18 @@ import (
 	"time"
 
 	"mikrotik-collector/internal/application/services"
+	"mikrotik-collector/internal/handlers"
 	"mikrotik-collector/internal/infrastructure/mikrotik"
+	"mikrotik-collector/internal/repository"
+	"mikrotik-collector/internal/routes"
 
-	"github.com/gorilla/websocket"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
-var clients = make(map[*websocket.Conn]bool)
-var broadcast = make(chan []byte)
-
-func handleWS(w http.ResponseWriter, r *http.Request) {
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
-		return
-	}
-
-	log.Printf("New WebSocket client connected from %s", r.RemoteAddr)
-	clients[ws] = true
-
-	defer func() {
-		delete(clients, ws)
-		ws.Close()
-		log.Printf("WebSocket client disconnected")
-	}()
-
-	for {
-		if _, _, err := ws.ReadMessage(); err != nil {
-			break
-		}
-	}
-}
-
-func broadcaster() {
-	for {
-		msg := <-broadcast
-
-		for client := range clients {
-			err := client.WriteMessage(websocket.TextMessage, msg)
-			if err != nil {
-				log.Printf("Write error: %v", err)
-				client.Close()
-				delete(clients, client)
-			}
-		}
-	}
-}
-
-func healthCheck(w http.ResponseWriter, r *http.Request) {
-	status := map[string]interface{}{
-		"status":    "ok",
-		"timestamp": time.Now().Format(time.RFC3339),
-		"clients":   len(clients),
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
-}
-
 func main() {
 	godotenv.Load()
-	log.Println("=== MikroTik Traffic Monitor (Continuous Mode) ===")
+	log.Println("=== MikroTik Traffic Monitor (On-Demand Mode) ===")
 
 	cfg := LoadConfig()
 	if err := cfg.Validate(); err != nil {
@@ -84,7 +32,7 @@ func main() {
 	log.Printf("Config: MikroTik=%s:%s, Redis=%s, WS Port=%s, DB=%s:%d",
 		cfg.MikroTikHost, cfg.MikroTikPort, cfg.RedisAddr, cfg.WSPort, cfg.DBHost, cfg.DBPort)
 
-	// Initialize MikroTik client for Background Monitoring
+	// Initialize MikroTik client
 	mtClient, err := mikrotik.NewClient(mikrotik.Config{
 		Host:     cfg.MikroTikHost,
 		Port:     cfg.MikroTikPortInt(),
@@ -92,102 +40,85 @@ func main() {
 		Password: cfg.MikroTikPassword,
 		Timeout:  10 * time.Second,
 		UseTLS:   false,
-		Queue:    100,
+		Queue:    1000,
 	})
 	if err != nil {
-		log.Fatalf("Failed to connect to MikroTik (Background): %v", err)
+		log.Fatalf("Failed to connect to MikroTik: %v", err)
 	}
 	defer mtClient.Close()
-	log.Println("MikroTik (Background) connected successfully")
+	log.Println("MikroTik connected successfully")
 
-	// Initialize MikroTik client for Interactive Tasks (Ping, etc.)
-	mtInteractiveClient, err := mikrotik.NewClient(mikrotik.Config{
-		Host:     cfg.MikroTikHost,
-		Port:     cfg.MikroTikPortInt(),
-		Username: cfg.MikroTikUsername,
-		Password: cfg.MikroTikPassword,
-		Timeout:  10 * time.Second,
-		UseTLS:   false,
-		Queue:    100,
-	})
-	if err != nil {
-		log.Fatalf("Failed to connect to MikroTik (Interactive): %v", err)
-	}
-	defer mtInteractiveClient.Close()
-	log.Println("MikroTik (Interactive) connected successfully")
+	// Initialize WebSocket handler (global broadcasts)
+	wsHandler := handlers.NewWebSocketHandler()
 
 	// Initialize Redis publisher
 	publisher := NewRedisPublisher(cfg)
 	defer publisher.Close()
 
-	// Initialize database and continuous traffic service
-	var trafficService *services.ContinuousTrafficService
-	var customerRepo *services.DatabaseCustomerRepository
-
+	// Initialize DB
+	var db *sql.DB
 	if cfg.EnableTrafficMonitor {
-		db, err := InitDatabase(cfg)
+		dbConn, err := InitDatabase(cfg)
 		if err != nil {
 			log.Printf("WARNING: Database connection failed: %v", err)
-			log.Println("Traffic monitoring will be disabled")
 			cfg.EnableTrafficMonitor = false
 		} else {
+			db = dbConn
 			defer db.Close()
 			log.Println("Database connected successfully")
-
-			// Initialize continuous traffic service (Uses Background Client)
-			customerRepo = services.NewDatabaseCustomerRepository(db)
-			trafficService = services.NewContinuousTrafficService(
-				mtClient,
-				customerRepo,
-				publisher,
-			)
-
-			// Start continuous monitoring
-			if err := trafficService.Start(); err != nil {
-				log.Fatalf("Failed to start continuous monitoring: %v", err)
-			}
-			defer trafficService.Stop()
-
-			log.Println("Continuous traffic monitoring started")
 		}
 	}
 
-	// Start Redis Stream consumer
-	streamConsumer := NewRedisStreamConsumer(cfg, broadcast)
-	go streamConsumer.Start()
-	defer streamConsumer.Close()
+	// Initialize Handlers placeholders
+	var trafficHandler *handlers.TrafficMonitorHandler
+	var callbackHandler *handlers.CallbackHandler
+	var customerHandler *handlers.CustomerHandler
 
-	// Start WebSocket broadcaster
-	go broadcaster()
+	// Initialize Services if DB is up
+	if db != nil {
+		// New Repositories
+		customerRepo := repository.NewDatabaseCustomerRepository(db)
 
-	// Setup HTTP routes
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", handleWS)
-	mux.HandleFunc("/health", healthCheck)
+		// New Services
+		trafficService := services.NewOnDemandTrafficService(mtClient, customerRepo, publisher)
+		customerService := services.NewCustomerService(customerRepo, mtClient)
 
-	if cfg.EnableTrafficMonitor && trafficService != nil {
-		log.Println("Registering traffic monitor routes...")
-		handler := NewTrafficMonitorHandler(trafficService, customerRepo, mtInteractiveClient)
-		handler.RegisterRoutes(mux)
+		// Create Handlers
+		trafficHandler = handlers.NewTrafficMonitorHandler(trafficService, customerRepo, mtClient)
+		callbackHandler = handlers.NewCallbackHandler(customerRepo)
+		customerHandler = handlers.NewCustomerHandler(customerService)
 	} else {
-		log.Printf("Skipping traffic monitor routes registration. EnableTrafficMonitor=%v, trafficService=%v", cfg.EnableTrafficMonitor, trafficService != nil)
+		// Fallback if DB connects fails, but wait, TrafficHandler needs repo...
+		// If DB fails, we probably can't run most things.
+		log.Println("Running in limited mode (No Database)")
 	}
 
-	// Wrap with CORS middleware
-	httpHandler := ChainMiddleware(mux, CORSMiddleware)
+	// Setup Gin router
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
 
+	// Setup routes
+	if customerHandler != nil {
+		log.Println("Setting up routes...")
+		routes.SetupRoutes(router, wsHandler, trafficHandler, callbackHandler, customerHandler)
+	} else {
+		// Minimal setup
+		router.Use(gin.Recovery())
+		router.GET("/health", wsHandler.HandleHealthCheck)
+	}
+
+	// Create HTTP server
 	server := &http.Server{
 		Addr:         ":" + cfg.WSPort,
-		Handler:      httpHandler,
+		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// Start server
 	go func() {
 		log.Printf("Server started on :%s", cfg.WSPort)
-		log.Printf("- WebSocket: ws://localhost:%s/ws", cfg.WSPort)
-		log.Printf("- Health: http://localhost:%s/health", cfg.WSPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatal(err)
 		}
@@ -199,5 +130,13 @@ func main() {
 	<-sigChan
 
 	log.Println("\nShutting down gracefully...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	}
+
 	log.Println("Shutdown complete")
 }
