@@ -78,6 +78,6 @@ CREATE TRIGGER update_customers_updated_at
 INSERT INTO customers (mikrotik_id, username, name, service_type, pppoe_username, pppoe_password, status)
 VALUES 
     ('mikrotik-001', 'customer1', 'Test Customer 1', 'pppoe', 'tes', '1122', 'active'),
-    ('mikrotik-001', 'customer2', 'Test Customer 2', 'pppoe', 'test-pppoe-2', 'password456', 'active'),
+    ('mikrotik-001', 'customer2', 'Test Customer 2', 'pppoe', 'tes1', '1122', 'active'),
     ('mikrotik-001', 'customer3', 'Test Customer 3', 'hotspot', NULL, NULL, 'active')
 ON CONFLICT DO NOTHING;

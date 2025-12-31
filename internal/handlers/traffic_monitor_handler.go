@@ -37,11 +37,30 @@ func NewTrafficMonitorHandler(
 // GetStatus returns monitoring status
 // GET /api/monitor/status
 func (h *TrafficMonitorHandler) GetStatus(c *gin.Context) {
-	// OnDemand service doesn't track global stats in the same way
-	// We can return simple status
+	// Get customer count
+	customers, _, err := h.repo.ListCustomers(1, 1000)
+	if err != nil {
+		log.Printf("[Handler] Failed to get customers: %v", err)
+		c.JSON(200, gin.H{
+			"status":         "ok",
+			"customer_count": 0,
+			"monitor_count":  0,
+		})
+		return
+	}
+
+	// Count active monitors
+	activeCount := 0
+	for _, cust := range customers {
+		if cust.Status == "active" {
+			activeCount++
+		}
+	}
+
 	c.JSON(200, gin.H{
-		"status": "ok",
-		"mode":   "on-demand",
+		"status":         "ok",
+		"customer_count": len(customers),
+		"monitor_count":  activeCount,
 	})
 }
 
@@ -55,9 +74,9 @@ func (h *TrafficMonitorHandler) ReloadCustomers(c *gin.Context) {
 }
 
 // StreamCustomerTraffic streams traffic for a specific customer via WebSocket
-// GET /api/customers/:customer_id/traffic/ws
+// GET /api/customers/:id/traffic/ws
 func (h *TrafficMonitorHandler) StreamCustomerTraffic(c *gin.Context) {
-	customerID := c.Param("customer_id")
+	customerID := c.Param("id")
 
 	// Allow all origins for now
 	upgrader := websocket.Upgrader{
@@ -75,7 +94,6 @@ func (h *TrafficMonitorHandler) StreamCustomerTraffic(c *gin.Context) {
 	defer ws.Close()
 
 	// Start On-Demand Monitoring
-	// This returns a channel that receives traffic data for THIS connection
 	streamChan, err := h.service.StartMonitoring(c.Request.Context(), customerID)
 	if err != nil {
 		log.Printf("[Handler] Failed to start stream for %s: %v", customerID, err)
@@ -83,7 +101,7 @@ func (h *TrafficMonitorHandler) StreamCustomerTraffic(c *gin.Context) {
 		return
 	}
 
-	// Ensure we stop monitoring when this handler exits (WS closes)
+	// Ensure we stop monitoring when this handler exits
 	defer h.service.StopMonitoring(customerID)
 
 	// Listen for close messages from client
@@ -112,6 +130,3 @@ func (h *TrafficMonitorHandler) StreamCustomerTraffic(c *gin.Context) {
 func (h *TrafficMonitorHandler) GetPingHandler() *PingHandler {
 	return h.pingHandler
 }
-
-// ListCustomers has been moved to CustomerHandler, but we can implement a redirect or removal logic.
-// Routes for ListCustomers are pointing to CustomerHandler now.

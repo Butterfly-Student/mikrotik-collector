@@ -28,9 +28,9 @@ func NewPingHandler(client *mikrotik.Client, repo domain.CustomerRepository) *Pi
 }
 
 // PingCustomerByID handles ping requests for a specific customer
-// GET /api/customers/:customer_id/ping
+// GET /api/customers/:id/ping
 func (h *PingHandler) PingCustomerByID(c *gin.Context) {
-	customerID := c.Param("customer_id")
+	customerID := c.Param("id")
 
 	// Get customer from database
 	customer, err := h.repo.GetCustomerByID(customerID)
@@ -105,9 +105,9 @@ func (h *PingHandler) PingCustomerByID(c *gin.Context) {
 }
 
 // PingCustomerStream handles streaming ping via WebSocket
-// GET /api/customers/:customer_id/ping/ws
+// GET /api/customers/:id/ping/ws
 func (h *PingHandler) PingCustomerStream(c *gin.Context) {
-	customerID := c.Param("customer_id")
+	customerID := c.Param("id")
 
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },

@@ -1,0 +1,852 @@
+{{ template "layout_header" . }}
+
+{{ template "topbar" . }}
+
+<div class="dashboard-container" id="main-display">
+    <div class="empty-state">
+        <div class="empty-icon">
+            <i class="fa-regular fa-chart-bar"></i>
+        </div>
+        <h2>Select a Customer</h2>
+        <p>Choose a customer from the sidebar to view continuous real-time traffic statistics.</p>
+    </div>
+</div>
+
+<!-- Ping Modal -->
+<div class="modal-overlay" id="ping-modal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <div class="modal-title">
+                <i class="fa-solid fa-terminal" style="margin-right: 8px; color: var(--primary);"></i>
+                Ping: <span id="ping-target-name">...</span>
+            </div>
+            <button class="btn" onclick="closePingModal()"
+                style="padding: 8px; background: transparent; color: var(--gray-500);">
+                <i class="fa-solid fa-times" style="font-size: 1.2rem;"></i>
+            </button>
+        </div>
+        <div class="modal-body" id="ping-terminal-body">
+            <div class="terminal-output" id="ping-output">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <div id="ping-summary-container"></div>
+            <button class="btn btn-primary" id="ping-action-btn" onclick="togglePing()">
+                Stop Ping
+            </button>
+        </div>
+    </div>
+</div>
+
+{{ template "layout_footer" . }}
+
+{{ define "styles" }}
+<style>
+    .dashboard-container {
+        padding: 32px;
+        max-width: 1200px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 60vh;
+        color: var(--gray-600);
+        text-align: center;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        color: var(--gray-300);
+        margin-bottom: 24px;
+    }
+
+    .detail-view {
+        animation: fadeIn 0.3s ease;
+    }
+
+    .customer-header {
+        margin-bottom: 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .profile-card {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .profile-avatar-large {
+        width: 80px;
+        height: 80px;
+        background: linear-gradient(135deg, var(--primary) 0%, #7C3AED 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 32px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    }
+
+    .profile-info h1 {
+        font-size: 1.8rem;
+        color: var(--gray-900);
+        margin-bottom: 4px;
+    }
+
+    .profile-badges {
+        display: flex;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    .badge {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-type {
+        background-color: var(--primary-light);
+        color: var(--primary);
+    }
+
+    .badge-interface {
+        background-color: var(--gray-100);
+        color: var(--gray-700);
+        font-family: monospace;
+    }
+
+    .badge-status-online {
+        background-color: var(--success-light);
+        color: var(--success);
+    }
+
+    .badge-status-offline {
+        background-color: var(--gray-200);
+        color: var(--gray-500);
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+    }
+
+    .traffic-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 24px;
+        margin-bottom: 32px;
+    }
+
+    .stat-card {
+        background-color: white;
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--gray-100);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 100px;
+        height: 100px;
+        background: linear-gradient(135deg, transparent, rgba(255, 255, 255, 0.1));
+        pointer-events: none;
+    }
+
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 16px;
+    }
+
+    .icon-download {
+        background-color: var(--success-light);
+        color: var(--success);
+    }
+
+    .icon-upload {
+        background-color: #DBEAFE;
+        color: #2563EB;
+    }
+
+    .icon-packet {
+        background-color: #F3E8FF;
+        color: #7C3AED;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: var(--gray-600);
+        margin-bottom: 8px;
+        font-weight: 500;
+    }
+
+    .stat-value {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: var(--gray-900);
+        line-height: 1;
+    }
+
+    .stat-unit {
+        font-size: 1rem;
+        color: var(--gray-500);
+        font-weight: 500;
+        margin-left: 4px;
+    }
+
+    .update-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background-color: var(--gray-100);
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        color: var(--gray-600);
+        margin-top: 16px;
+    }
+
+    .ping-result {
+        background-color: white;
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--gray-100);
+    }
+
+    .ping-result.success {
+        border-left: 4px solid var(--success);
+    }
+
+    .ping-result.error {
+        border-left: 4px solid var(--danger);
+    }
+
+    .ping-result-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .ping-result-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .ping-result-icon.success {
+        background-color: var(--success-light);
+        color: var(--success);
+    }
+
+    .ping-result-icon.error {
+        background-color: var(--danger-light);
+        color: var(--danger);
+    }
+
+    .ping-result-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+
+    .ping-result-subtitle {
+        font-size: 0.9rem;
+        color: var(--gray-600);
+    }
+
+    .ping-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-top: 16px;
+    }
+
+    .ping-stat {
+        text-align: center;
+    }
+
+    .ping-stat-label {
+        font-size: 0.75rem;
+        color: var(--gray-600);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .ping-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+
+        50% {
+            transform: scale(1.05);
+            opacity: 1;
+        }
+
+        100% {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+    }
+
+    .live-dot {
+        width: 6px;
+        height: 6px;
+        background-color: var(--danger);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay.active {
+        display: flex;
+        animation: fadeIn 0.2s ease;
+    }
+
+    .modal-container {
+        background-color: white;
+        width: 800px;
+        max-width: 90vw;
+        border-radius: 16px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-height: 85vh;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--gray-900);
+    }
+
+    .modal-body {
+        padding: 0;
+        overflow-y: auto;
+        background-color: #1e1e1e;
+        color: #d4d4d4;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.9rem;
+        height: 400px;
+    }
+
+    .terminal-output {
+        padding: 16px;
+    }
+
+    .terminal-row {
+        display: grid;
+        grid-template-columns: 50px 140px 60px 60px 80px 1fr;
+        gap: 12px;
+        padding: 2px 0;
+    }
+
+    .terminal-header {
+        font-weight: bold;
+        border-bottom: 1px solid #444;
+        padding-bottom: 4px;
+        margin-bottom: 8px;
+        position: sticky;
+        top: 0;
+        background-color: #1e1e1e;
+    }
+
+    .modal-footer {
+        padding: 20px 24px;
+        border-top: 1px solid var(--gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: white;
+    }
+
+    .ping-summary-text {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.9rem;
+        background: #f3f4f6;
+        padding: 4px 8px;
+        border-radius: 4px;
+    }
+</style>
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+    let ws = null;
+    // selectedCustomer is set by sidebar click or URL
+    let selectedCustomerLocal = null;
+    let currentTrafficData = {};
+    let lastPingResult = null;
+
+    // Use current host
+    const API_BASE = window.location.origin;
+    const WS_URL_PROTO = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const WS_URL = `${WS_URL_PROTO}//${window.location.host}/ws`;
+
+    // Global select function for sidebar to call
+    window.selectCustomer = function (customer) {
+        selectedCustomerLocal = customer;
+        renderTrafficView(currentTrafficData[customer.id] || {});
+        if (!currentTrafficData[customer.id]) {
+            renderInitialDetailView();
+        }
+    };
+
+    function connectWebSocket() {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+            // console.log('Connected to WebSocket');
+            updateConnectionStatus(true);
+        };
+
+        ws.onclose = () => {
+            // console.log('WebSocket disconnected');
+            updateConnectionStatus(false);
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                if (typeof event.data !== 'string') return;
+                const data = JSON.parse(event.data);
+
+                // Traffic data
+                if (data.customer_id && data.download_speed) {
+                    currentTrafficData[data.customer_id] = data;
+                    if (selectedCustomerLocal && selectedCustomerLocal.id === data.customer_id) {
+                        renderTrafficView(data);
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing WS message', e);
+            }
+        };
+    }
+
+    function updateConnectionStatus(connected) {
+        const text = document.getElementById('ws-status-text');
+        const indicator = document.getElementById('ws-indicator');
+        if (!text || !indicator) return;
+
+        if (connected) {
+            text.textContent = 'Live Connected';
+            text.style.color = 'var(--success)';
+            indicator.className = 'ws-dot connected';
+        } else {
+            text.textContent = 'Reconnecting...';
+            text.style.color = 'var(--gray-500)';
+            indicator.className = 'ws-dot disconnected';
+        }
+    }
+
+    async function updateSystemStats() {
+        try {
+            const response = await fetch(`/api/monitor/status`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+
+            const cCount = document.getElementById('total-customers');
+            const mCount = document.getElementById('active-monitors');
+            if (cCount) cCount.textContent = data.customer_count;
+            if (mCount) mCount.textContent = data.monitor_count;
+        } catch (error) {
+            console.error('Failed to load stats', error);
+        }
+    }
+
+    // --- Rendering Logic ---
+
+    function renderInitialDetailView() {
+        if (!selectedCustomerLocal) return;
+
+        const c = selectedCustomerLocal;
+        const container = document.getElementById('main-display');
+        const initials = c.name.substring(0, 2).toUpperCase();
+        const isOnline = c.is_monitoring;
+
+        container.innerHTML = `
+            <div class="detail-view">
+                <div class="customer-header">
+                    <div class="profile-card">
+                        <div class="profile-avatar-large">${initials}</div>
+                        <div class="profile-info">
+                            <h1>${c.name}</h1>
+                            <div class="profile-badges">
+                                <span class="badge badge-type">${c.service_type}</span>
+                                <span class="badge ${c.status === 'active' ? 'badge-status-online' : 'badge-status-offline'}">
+                                    ${c.status}
+                                </span>
+                                ${c.pppoe_username ? `<span class="badge badge-interface">pppoe-${c.pppoe_username}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                         <a href="/customers/edit/${c.id}" class="btn btn-secondary">
+                            <i class="fa-solid fa-pen"></i> Edit
+                         </a>
+                         <button class="btn btn-primary" onclick="pingCustomer('${c.id}')">
+                            <i class="fa-solid fa-satellite-dish"></i> Ping
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ping-result-container"></div>
+
+                ${isOnline || c.status === 'active' ? `
+                    <div class="empty-state" style="height: 40vh;">
+                        <i class="fa-solid fa-circle-notch fa-spin" style="font-size: 2rem; color: var(--primary); margin-bottom: 16px;"></i>
+                        <h3>Waiting for Data...</h3>
+                        <p>Connecting to live traffic stream for this customer.</p>
+                    </div>
+                ` : `
+                    <div class="empty-state" style="height: 40vh;">
+                        <i class="fa-solid fa-power-off" style="font-size: 3rem; color: var(--gray-300); margin-bottom: 16px;"></i>
+                        <h3>Customer Offline</h3>
+                        <p>This customer is not currently connected to the network.</p>
+                    </div>
+                `}
+            </div>
+        `;
+    }
+
+    function renderTrafficView(data) {
+        // If data is empty or not matching selected
+        if (!selectedCustomerLocal) return;
+        if (data.customer_id && selectedCustomerLocal.id !== data.customer_id) return;
+
+        // If we just have selectedCustomer but no real traffic data yet, renderInitial
+        if (!data.download_speed) {
+            renderInitialDetailView();
+            return;
+        }
+
+        const container = document.getElementById('main-display');
+
+        const dl = data.download_speed.split(' ');
+        const ul = data.upload_speed.split(' ');
+        const dlVal = dl[0];
+        const dlUnit = dl[1] || 'bps';
+        const ulVal = ul[0];
+        const ulUnit = ul[1] || 'bps';
+        const initials = (data.customer_name || selectedCustomerLocal.name).substring(0, 2).toUpperCase();
+
+        // Check if we are already in view (simple check)
+        const existingDl = document.getElementById('val-dl');
+        if (existingDl && document.getElementById('ping-result-container')) {
+            document.getElementById('val-dl').textContent = dlVal;
+            document.getElementById('unit-dl').textContent = dlUnit;
+            document.getElementById('val-ul').textContent = ulVal;
+            document.getElementById('unit-ul').textContent = ulUnit;
+            document.getElementById('val-rx').textContent = data.rx_packets_per_second || '0';
+            document.getElementById('val-tx').textContent = data.tx_packets_per_second || '0';
+            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+            return;
+        }
+
+        // Full Render
+        container.innerHTML = `
+            <div class="detail-view">
+                <div class="customer-header">
+                    <div class="profile-card">
+                        <div class="profile-avatar-large">${initials}</div>
+                        <div class="profile-info">
+                            <h1>${data.customer_name}</h1>
+                            <div class="profile-badges">
+                                <span class="badge badge-type">${data.service_type}</span>
+                                <span class="badge badge-status-online">LIVE MONITORING</span>
+                                <span class="badge badge-interface">${data.interface_name}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="/customers/edit/${selectedCustomerLocal.id}" class="btn btn-secondary">
+                            <i class="fa-solid fa-pen"></i> Edit
+                        </a>
+                        <button class="btn btn-primary" onclick="pingCustomer('${data.customer_id}')">
+                            <i class="fa-solid fa-satellite-dish"></i> Ping
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ping-result-container"></div>
+
+                <div class="traffic-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon icon-download">
+                            <i class="fa-solid fa-arrow-down"></i>
+                        </div>
+                        <div class="stat-label">Download Speed</div>
+                        <div class="stat-value">
+                            <span id="val-dl">${dlVal}</span>
+                            <span class="stat-unit" id="unit-dl">${dlUnit}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon icon-upload">
+                            <i class="fa-solid fa-arrow-up"></i>
+                        </div>
+                        <div class="stat-label">Upload Speed</div>
+                        <div class="stat-value">
+                            <span id="val-ul">${ulVal}</span>
+                            <span class="stat-unit" id="unit-ul">${ulUnit}</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon icon-packet">
+                            <i class="fa-solid fa-envelope-open-text"></i>
+                        </div>
+                        <div class="stat-label">Packets RX / sec</div>
+                        <div class="stat-value">
+                            <span id="val-rx">${data.rx_packets_per_second || '0'}</span>
+                            <span class="stat-unit">pps</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon icon-packet">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </div>
+                        <div class="stat-label">Packets TX / sec</div>
+                        <div class="stat-value">
+                            <span id="val-tx">${data.tx_packets_per_second || '0'}</span>
+                            <span class="stat-unit">pps</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="update-pill">
+                    <div class="live-dot"></div>
+                    Last updated: <span id="last-updated">${new Date().toLocaleTimeString()}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    // --- Ping Logic ---
+    let pingWs = null;
+    let clientStats = { sent: 0, received: 0 };
+    let isPinging = false;
+
+    function pingCustomer(customerId) {
+        // Reuse modal open logic
+        const c = selectedCustomerLocal; // Must match if button is clicked from detail view
+        if (!c) return;
+
+        openPingModal(c);
+        startPingWs(customerId);
+    }
+
+    window.pingCustomer = pingCustomer;
+
+    function openPingModal(customer) {
+        document.getElementById('ping-modal').classList.add('active');
+        document.getElementById('ping-target-name').textContent = customer.name;
+
+        const out = document.getElementById('ping-output');
+        out.innerHTML = `
+            <div class="terminal-row terminal-header">
+                <span>SEQ</span><span>HOST</span><span>SIZE</span><span>TTL</span><span>TIME</span><span>STATUS</span>
+            </div>
+        `;
+        document.getElementById('ping-summary-container').innerHTML = '';
+
+        const btn = document.getElementById('ping-action-btn');
+        btn.textContent = 'Stop Ping';
+        btn.className = 'btn btn-primary';
+        btn.onclick = togglePing; // Use global function
+        isPinging = true;
+    }
+
+    function closePingModal() {
+        if (pingWs) {
+            pingWs.close();
+            pingWs = null;
+        }
+        document.getElementById('ping-modal').classList.remove('active');
+        isPinging = false;
+    }
+    window.closePingModal = closePingModal;
+
+    function startPingWs(customerId) {
+        if (pingWs) pingWs.close();
+        clientStats = { sent: 0, received: 0 };
+
+        // Fix for :id route
+        const wsUrl = `${WS_URL_PROTO}//${window.location.host}/api/customers/${customerId}/ping/ws`;
+        pingWs = new WebSocket(wsUrl);
+
+        pingWs.onopen = () => console.log("Ping WS Connected");
+        pingWs.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'update') appendPingLine(msg.data);
+                else if (msg.type === 'summary') {
+                    showPingSummary(msg.summary);
+                    stopPingState();
+                } else if (msg.type === 'error') {
+                    appendErrorLine(msg.error);
+                    stopPingState();
+                }
+            } catch (e) {
+                console.error("Ping WS parse error", e);
+            }
+        };
+        pingWs.onclose = () => {
+            if (isPinging) stopPingState(true);
+        };
+    }
+
+    function appendPingLine(data) {
+        const out = document.getElementById('ping-output');
+        const row = document.createElement('div');
+        row.className = 'terminal-row';
+        if (data.seq) {
+            clientStats.sent++;
+            if (data.time || (data.status === '' && data.size)) clientStats.received++;
+        }
+        let status = data.status || '';
+        if (status === 'timeout') row.style.color = '#ff6b6b';
+        row.innerHTML = `<span>${data.seq || ''}</span><span>${data.host || ''}</span><span>${data.size || ''}</span><span>${data.ttl || ''}</span><span>${data.time || ''}</span><span>${status}</span>`;
+        out.appendChild(row);
+        document.getElementById('ping-terminal-body').scrollTop = document.getElementById('ping-terminal-body').scrollHeight;
+    }
+
+    function appendErrorLine(err) {
+        const out = document.getElementById('ping-output');
+        const row = document.createElement('div');
+        row.style.color = '#ef4444';
+        row.textContent = `Error: ${err}`;
+        out.appendChild(row);
+    }
+
+    function showPingSummary(summary) {
+        document.getElementById('ping-summary-container').innerHTML = `
+            <div class="ping-summary-text">sent=${summary.sent} received=${summary.received} packet-loss=${summary.packet_loss}</div>
+        `;
+    }
+
+    function togglePing() {
+        if (isPinging) {
+            if (pingWs) pingWs.close();
+        } else {
+            closePingModal();
+        }
+    }
+    window.togglePing = togglePing;
+
+    function stopPingState(showSummary) {
+        isPinging = false;
+        const btn = document.getElementById('ping-action-btn');
+        if (btn) {
+            btn.textContent = 'Close';
+            btn.className = 'btn';
+            btn.onclick = closePingModal;
+        }
+        if (showSummary) {
+            let loss = 0;
+            if (clientStats.sent > 0) loss = ((clientStats.sent - clientStats.received) / clientStats.sent) * 100;
+            showPingSummary({
+                sent: clientStats.sent,
+                received: clientStats.received,
+                packet_loss: loss.toFixed(0) + '%'
+            });
+        }
+    }
+
+    // --- Init ---
+    connectWebSocket();
+    updateSystemStats();
+    setInterval(updateSystemStats, 5000);
+
+    // Check specific customer from URL on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialId = urlParams.get('customer_id');
+
+    if (initialId) {
+        fetch(`/api/customers/${initialId}`).then(r => r.json()).then(d => {
+            if (d.status === 'success') {
+                selectedCustomerLocal = d.data;
+                renderInitialDetailView();
+            }
+        });
+    }
+
+</script>
+{{ end }}

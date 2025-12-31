@@ -19,8 +19,17 @@ func SetupRoutes(
 ) *gin.Engine {
 	// Apply global middleware
 	router.Use(middleware.CORS())
-	// router.Use(middleware.Logger()) // Use standard Gin logger or custom
 	router.Use(gin.Recovery())
+
+	// Serve static files from frontend directory
+	router.Static("/css", "./frontend/css")
+	router.Static("/js", "./frontend/js")
+
+	// Serve HTML files
+	router.StaticFile("/", "./frontend/index.html")
+	router.StaticFile("/index.html", "./frontend/index.html")
+	router.StaticFile("/add-customer.html", "./frontend/add-customer.html")
+	router.StaticFile("/edit-customer.html", "./frontend/edit-customer.html")
 
 	// WebSocket endpoint
 	router.GET("/ws", wsHandler.HandleWS)
@@ -50,9 +59,9 @@ func SetupRoutes(
 
 			// Monitoring Specifics (handled by TrafficMonitorHandler)
 			// These extend the customer resource
-			customers.GET("/:customer_id/ping", trafficHandler.GetPingHandler().PingCustomerByID)
-			customers.GET("/:customer_id/ping/ws", trafficHandler.GetPingHandler().PingCustomerStream)
-			customers.GET("/:customer_id/traffic/ws", trafficHandler.StreamCustomerTraffic)
+			customers.GET("/:id/ping", trafficHandler.GetPingHandler().PingCustomerByID)
+			customers.GET("/:id/ping/ws", trafficHandler.GetPingHandler().PingCustomerStream)
+			customers.GET("/:id/traffic/ws", trafficHandler.StreamCustomerTraffic)
 		}
 
 		// Monitor routes

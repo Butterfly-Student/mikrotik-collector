@@ -7,35 +7,35 @@ import (
 
 // Customer represents a customer in the system
 type Customer struct {
-	ID          string
-	MikrotikID  string
-	Username    string
-	Name        string
-	Phone       *string
-	Email       *string
-	ServiceType string // pppoe, hotspot, static_ip
+	ID          string  `json:"id"`
+	MikrotikID  string  `json:"mikrotik_id"`
+	Username    string  `json:"username"`
+	Name        string  `json:"name"`
+	Phone       *string `json:"phone"`
+	Email       *string `json:"email"`
+	ServiceType string  `json:"service_type"` // pppoe, hotspot, static_ip
 
 	// PPPoE specific
-	PPPoEUsername *string
-	PPPoEPassword *string
-	PPPoEProfile  *string
+	PPPoEUsername *string `json:"pppoe_username"`
+	PPPoEPassword *string `json:"pppoe_password"`
+	PPPoEProfile  *string `json:"pppoe_profile"`
 
 	// Hotspot specific
-	HotspotUsername *string
-	HotspotPassword *string
-	HotspotMacAddr  *string
+	HotspotUsername *string `json:"hotspot_username"`
+	HotspotPassword *string `json:"hotspot_password"`
+	HotspotMacAddr  *string `json:"hotspot_mac_addr"`
 
 	// Static IP
-	StaticIP *string
+	StaticIP *string `json:"static_ip"`
 
 	// Network info
-	AssignedIP *string
-	MacAddress *string
-	LastOnline *time.Time
+	AssignedIP *string    `json:"assigned_ip"`
+	MacAddress *string    `json:"mac_address"`
+	LastOnline *time.Time `json:"last_online"`
 
-	Status    string // active, suspended, inactive, pending
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Status    string    `json:"status"` // active, suspended, inactive, pending
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CustomerTrafficData represents traffic data for a customer

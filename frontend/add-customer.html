@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Customer - MikroBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+                <a href="/" style="text-decoration: none; color: inherit;">
+                    <div class="app-title">MikroBill</div>
+                    <div class="app-subtitle">Traffic Monitor</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="sidebar-search">
+            <div class="search-input-wrapper">
+                <i class="fa-solid fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search customers..." id="search-input">
+            </div>
+        </div>
+
+        <div class="customer-list" id="customer-list">
+            <div style="padding: 20px; text-align: center; color: var(--gray-500);">
+                <i class="fa-solid fa-spinner fa-spin"></i> Loading...
+            </div>
+        </div>
+
+        <div class="add-btn-container">
+            <a href="/add-customer.html" class="btn-add-customer">
+                <i class="fa-solid fa-plus"></i> Add Customer
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="system-stats">
+                <div class="stat-badge">
+                    <i class="fa-solid fa-users"></i>
+                    <span id="total-customers">0</span> Customers
+                </div>
+                <div class="stat-badge">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span id="active-monitors">0</span> Active
+                </div>
+            </div>
+
+            <div class="ws-status">
+                <span id="ws-status-text">Disconnected</span>
+                <div class="ws-dot" id="ws-indicator"></div>
+            </div>
+        </div>
+
+        <!-- Form Container -->
+        <div class="form-container">
+            <div style="margin-bottom: 24px;">
+                <h2 style="font-size: 1.5rem; color: var(--gray-900); font-weight: 700;">Add New Customer</h2>
+                <p style="color: var(--gray-600); margin-top: 4px;">Enter customer details to monitor traffic.</p>
+            </div>
+
+            <form id="add-customer-form">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="name" class="form-input" required placeholder="e.g. John Doe">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">App Username (Unique)</label>
+                    <input type="text" name="username" class="form-input" required placeholder="johndoe">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Service Type</label>
+                    <select name="service_type" class="form-select" id="service-type-select">
+                        <option value="pppoe">PPPoE</option>
+                        <option value="hotspot">Hotspot</option>
+                    </select>
+                </div>
+
+                <div id="pppoe-fields">
+                    <div class="form-group">
+                        <label class="form-label">PPPoE Username</label>
+                        <input type="text" name="pppoe_username" class="form-input" placeholder="MikroTik PPPoE User">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PPPoE Password</label>
+                        <input type="password" name="pppoe_password" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">PPPoE Profile</label>
+                        <input type="text" name="pppoe_profile" class="form-input" placeholder="default">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Phone Number</label>
+                    <input type="tel" name="phone" class="form-input" placeholder="+62...">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" placeholder="john@example.com">
+                </div>
+
+                <div class="form-actions">
+                    <a href="/" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-save"></i> Save Customer
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="./js/common.js"></script>
+    <script src="./js/customer-form.js"></script>
+</body>
+
+</html>

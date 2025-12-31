@@ -1,0 +1,318 @@
+{{ define "sidebar" }}
+<style>
+    .sidebar {
+        width: 320px;
+        background-color: white;
+        border-right: 1px solid var(--gray-200);
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    .sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .logo-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, var(--primary) 0%, #7C3AED 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+    }
+
+    .app-title {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--gray-900);
+    }
+
+    .app-subtitle {
+        font-size: 0.75rem;
+        color: var(--gray-600);
+    }
+
+    .sidebar-search {
+        padding: 16px;
+        border-bottom: 1px solid var(--gray-200);
+    }
+
+    .search-input-wrapper {
+        position: relative;
+    }
+
+    .search-icon {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--gray-300);
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 10px 10px 10px 36px;
+        border: 1px solid var(--gray-300);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: all 0.2s;
+    }
+
+    .search-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px var(--primary-light);
+    }
+
+    .customer-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+    }
+
+    .customer-item {
+        padding: 12px;
+        margin-bottom: 4px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border: 1px solid transparent;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .customer-item:hover {
+        background-color: var(--gray-100);
+    }
+
+    .customer-item.active {
+        background-color: var(--primary-light);
+        border-color: #C7D2FE;
+    }
+
+    .customer-avatar {
+        width: 38px;
+        height: 38px;
+        background-color: var(--gray-200);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        color: var(--gray-600);
+        flex-shrink: 0;
+    }
+
+    .customer-item.active .customer-avatar {
+        background-color: white;
+        color: var(--primary);
+    }
+
+    .customer-info {
+        flex: 1;
+        margin-left: 12px;
+        min-width: 0;
+    }
+
+    .customer-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--gray-900);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .customer-details {
+        font-size: 0.8rem;
+        color: var(--gray-600);
+        margin-top: 2px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-dot.online {
+        background-color: var(--success);
+        box-shadow: 0 0 0 2px var(--success-light);
+    }
+
+    .status-dot.offline {
+        background-color: var(--gray-300);
+    }
+
+    .add-btn-container {
+        padding: 16px;
+        border-top: 1px solid var(--gray-200);
+    }
+
+    .btn-add-customer {
+        width: 100%;
+        background-color: var(--primary);
+        color: white;
+        text-align: center;
+        padding: 10px;
+        border-radius: 8px;
+        text-decoration: none;
+        display: block;
+        font-weight: 600;
+    }
+
+    .btn-add-customer:hover {
+        background-color: #4338CA;
+    }
+</style>
+
+<div class="sidebar">
+    <div class="sidebar-header">
+        <div class="logo-icon">
+            <i class="fa-solid fa-bolt"></i>
+        </div>
+        <div>
+            <a href="/" style="text-decoration: none; color: inherit;">
+                <div class="app-title">MikroBill</div>
+                <div class="app-subtitle">Traffic Monitor</div>
+            </a>
+        </div>
+    </div>
+
+    <div class="sidebar-search">
+        <div class="search-input-wrapper">
+            <i class="fa-solid fa-search search-icon"></i>
+            <input type="text" class="search-input" placeholder="Search customers..." id="search-input">
+        </div>
+    </div>
+
+    <div class="customer-list" id="customer-list">
+        <!-- Rendered by JS -->
+        <div style="padding: 20px; text-align: center; color: var(--gray-500);">
+            <i class="fa-solid fa-spinner fa-spin"></i> Loading...
+        </div>
+    </div>
+
+    <div class="add-btn-container">
+        <a href="/customers/add" class="btn-add-customer">
+            <i class="fa-solid fa-plus"></i> Add Customer
+        </a>
+    </div>
+</div>
+
+<script>
+    // Just the fetch logic here, or we utilize a shared JS file.
+    // For simplicity, I'll inline a reusable fetch function for the sidebar
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchCustomers();
+    });
+
+    // Simple debouncer
+    let searchTimeout;
+    document.getElementById('search-input').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.toLowerCase();
+        searchTimeout = setTimeout(() => {
+            const items = document.querySelectorAll('.customer-item');
+            items.forEach(item => {
+                const name = item.getAttribute('data-name').toLowerCase();
+                if (name.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }, 300);
+    });
+
+    function fetchCustomers() {
+        const listValues = document.getElementById('customer-list');
+        fetch('/api/customers')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    renderSidebarCustomers(data.data);
+                }
+            })
+            .catch(err => {
+                console.error("Failed to fetch customers", err);
+                listValues.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--gray-500);">Error loading</div>';
+            });
+    }
+
+    function renderSidebarCustomers(customers) {
+        const container = document.getElementById('customer-list');
+        container.innerHTML = '';
+
+        if (!customers || customers.length === 0) {
+            container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--gray-500);">No customers found</div>';
+            return;
+        }
+
+        customers.forEach(c => {
+            const el = document.createElement('a');
+            el.className = 'customer-item';
+            el.href = '/?customer_id=' + c.id; // Or handle click to update state
+            el.setAttribute('data-id', c.id);
+            el.setAttribute('data-name', c.name);
+
+            // Check if active (if we are on dashboard with this ID)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('customer_id') === c.id) {
+                el.classList.add('active');
+            }
+
+            el.innerHTML = `
+                <div class="customer-avatar">
+                   ${c.name.substring(0, 2).toUpperCase()}
+                </div>
+                <div class="customer-info">
+                    <div class="customer-name">${c.name}</div>
+                    <div class="customer-details">
+                       <span class="status-dot ${c.status === 'active' ? 'online' : 'offline'}"></span>
+                       ${c.status || 'Unknown'} - ${c.service_type}
+                    </div>
+                </div>
+            `;
+
+            // Allow dashboard to intercept if we are on dashboard
+            el.addEventListener('click', (e) => {
+                if (window.location.pathname === '/' || window.location.pathname === '/index.html') {
+                    e.preventDefault();
+                    // Check if 'selectCustomer' is globally defined (dashboard logic)
+                    if (typeof selectCustomer === 'function') {
+                        selectCustomer(c);
+                        // Update active state manually
+                        document.querySelectorAll('.customer-item').forEach(i => i.classList.remove('active'));
+                        el.classList.add('active');
+
+                        // Update URL without reload
+                        const newUrl = new URL(window.location);
+                        newUrl.searchParams.set('customer_id', c.id);
+                        window.history.pushState({}, '', newUrl);
+                    } else {
+                        window.location.href = '/?customer_id=' + c.id;
+                    }
+                }
+            });
+
+            container.appendChild(el);
+        });
+    }
+</script>
+{{ end }}

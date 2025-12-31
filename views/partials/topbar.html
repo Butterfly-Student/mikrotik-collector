@@ -1,0 +1,75 @@
+{{ define "topbar" }}
+<style>
+    .top-bar {
+        background-color: white;
+        padding: 16px 32px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .system-stats {
+        display: flex;
+        gap: 24px;
+    }
+
+    .stat-badge {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background-color: var(--gray-100);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--gray-700);
+    }
+
+    .stat-badge i {
+        color: var(--gray-600);
+    }
+
+    .ws-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .ws-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: var(--gray-300);
+    }
+
+    .ws-dot.connected {
+        background-color: var(--success);
+        box-shadow: 0 0 5px var(--success);
+    }
+
+    .ws-dot.disconnected {
+        background-color: var(--danger);
+    }
+</style>
+
+<div class="top-bar">
+    <div class="system-stats">
+        <div class="stat-badge">
+            <i class="fa-solid fa-users"></i>
+            <span id="total-customers">0</span> Customers
+        </div>
+        <div class="stat-badge">
+            <i class="fa-solid fa-network-wired"></i>
+            <span id="active-monitors">0</span> Active
+        </div>
+    </div>
+
+    <div class="ws-status">
+        <span id="ws-status-text">Disconnected</span>
+        <div class="ws-dot" id="ws-indicator"></div>
+    </div>
+</div>
+{{ end }}

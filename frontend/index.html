@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MikroBill</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="./css/styles.css">
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-icon">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+                <a href="/" style="text-decoration: none; color: inherit;">
+                    <div class="app-title">MikroBill</div>
+                    <div class="app-subtitle">Traffic Monitor</div>
+                </a>
+            </div>
+        </div>
+
+        <div class="sidebar-search">
+            <div class="search-input-wrapper">
+                <i class="fa-solid fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Search customers..." id="search-input">
+            </div>
+        </div>
+
+        <div class="customer-list" id="customer-list">
+            <div style="padding: 20px; text-align: center; color: var(--gray-500);">
+                <i class="fa-solid fa-spinner fa-spin"></i> Loading...
+            </div>
+        </div>
+
+        <div class="add-btn-container">
+            <a href="/add-customer.html" class="btn-add-customer">
+                <i class="fa-solid fa-plus"></i> Add Customer
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <div class="system-stats">
+                <div class="stat-badge">
+                    <i class="fa-solid fa-users"></i>
+                    <span id="total-customers">0</span> Customers
+                </div>
+                <div class="stat-badge">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span id="active-monitors">0</span> Active
+                </div>
+            </div>
+
+            <div class="ws-status">
+                <span id="ws-status-text">Disconnected</span>
+                <div class="ws-dot" id="ws-indicator"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard Content -->
+        <div class="dashboard-container" id="main-display">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fa-regular fa-chart-bar"></i>
+                </div>
+                <h2>Select a Customer</h2>
+                <p>Choose a customer from the sidebar to view continuous real-time traffic statistics.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ping Modal -->
+    <div class="modal-overlay" id="ping-modal">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fa-solid fa-terminal" style="margin-right: 8px; color: var(--primary);"></i>
+                    Ping: <span id="ping-target-name">...</span>
+                </div>
+                <button class="btn" onclick="closePingModal()"
+                    style="padding: 8px; background: transparent; color: var(--gray-500);">
+                    <i class="fa-solid fa-times" style="font-size: 1.2rem;"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="ping-terminal-body">
+                <div class="terminal-output" id="ping-output">
+                    <!-- Content injected by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div id="ping-summary-container"></div>
+                <button class="btn btn-primary" id="ping-action-btn" onclick="togglePing()">
+                    Stop Ping
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="./js/common.js"></script>
+    <script src="./js/dashboard.js"></script>
+</body>
+
+</html>

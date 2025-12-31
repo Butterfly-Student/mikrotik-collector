@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: mikrobill-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: r00t
+      POSTGRES_DB: mikrobill-tes
+    volumes:
+      - pgdata:/var/lib/postgresql/data:Z
+      - ./migrations:/docker-entrypoint-initdb.d:ro,Z
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d mikrobill-tes"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

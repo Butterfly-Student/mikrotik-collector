@@ -97,7 +97,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 
-	// Setup routes
+	// Setup routes (API only, no template rendering)
 	if customerHandler != nil {
 		log.Println("Setting up routes...")
 		routes.SetupRoutes(router, wsHandler, trafficHandler, callbackHandler, customerHandler)

@@ -1,0 +1,126 @@
+{{ template "layout_header" . }}
+
+{{ template "topbar" . }}
+
+<div class="form-container">
+    <div style="margin-bottom: 24px;">
+        <h2 style="font-size: 1.5rem; color: var(--gray-900); font-weight: 700;">Add New Customer</h2>
+        <p style="color: var(--gray-600); margin-top: 4px;">Enter customer details to monitor traffic.</p>
+    </div>
+
+    <form id="add-customer-form">
+        <div class="form-group">
+            <label class="form-label">Full Name</label>
+            <input type="text" name="name" class="form-input" required placeholder="e.g. John Doe">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">App Username (Unique)</label>
+            <input type="text" name="username" class="form-input" required placeholder="johndoe">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Service Type</label>
+            <select name="service_type" class="form-select" id="service-type-select">
+                <option value="pppoe">PPPoE</option>
+                <option value="hotspot">Hotspot</option>
+            </select>
+        </div>
+
+        <div id="pppoe-fields">
+            <div class="form-group">
+                <label class="form-label">PPPoE Username</label>
+                <input type="text" name="pppoe_username" class="form-input" placeholder="MikroTik PPPoE User">
+            </div>
+            <div class="form-group">
+                <label class="form-label">PPPoE Password</label>
+                <input type="password" name="pppoe_password" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">PPPoE Profile</label>
+                <input type="text" name="pppoe_profile" class="form-input" placeholder="default">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Phone Number</label>
+            <input type="tel" name="phone" class="form-input" placeholder="+62...">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" name="email" class="form-input" placeholder="john@example.com">
+        </div>
+
+        <div class="form-actions">
+            <a href="/" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="fa-solid fa-save"></i> Save Customer
+            </button>
+        </div>
+    </form>
+</div>
+
+{{ template "layout_footer" . }}
+
+{{ define "styles" }}
+<!-- Base styles cover most forms -->
+{{ end }}
+
+{{ define "scripts" }}
+<script>
+    const form = document.getElementById('add-customer-form');
+    const typeSelect = document.getElementById('service-type-select');
+    const pppoeFields = document.getElementById('pppoe-fields');
+
+    typeSelect.addEventListener('change', () => {
+        if (typeSelect.value === 'pppoe') {
+            pppoeFields.style.display = 'block';
+        } else {
+            pppoeFields.style.display = 'none';
+        }
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        // Basic payload structure
+        const payload = {
+            name: data.name,
+            username: data.username,
+            service_type: data.service_type,
+            phone: data.phone || null,
+            email: data.email || null,
+            pppoe_username: data.pppoe_username || null,
+            pppoe_password: data.pppoe_password || null,
+            pppoe_profile: data.pppoe_profile || null
+        };
+
+        try {
+            const res = await fetch('/api/customers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await res.json();
+
+            if (res.ok && result.status === 'success') {
+                // Redirect to dashboard
+                alert('Customer created successfully!');
+                window.location.href = '/';
+            } else {
+                alert('Error: ' + (result.message || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to submit form');
+        }
+    });
+</script>
+{{ end }}
