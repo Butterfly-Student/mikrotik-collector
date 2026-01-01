@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,8 +33,9 @@ type CustomerMonitor struct {
 	CustomerID    string
 	InterfaceName string
 	Cancel        context.CancelFunc
-	Clients       int                                      // Number of active WebSocket clients viewing this customer
-	Observers     map[chan domain.CustomerTrafficData]bool // List of channels to broadcast to
+	Clients       int
+	Observers     map[chan domain.CustomerTrafficData]bool
+	restartCount  int // Track restart attempts
 }
 
 // NewOnDemandTrafficService creates a new on-demand traffic service
@@ -84,10 +86,19 @@ func (s *OnDemandTrafficService) StartMonitoring(ctx context.Context, customerID
 		return nil, fmt.Errorf("customer not found: %w", err)
 	}
 
-	// Determine interface name
-	interfaceName, err := customer.GetInterfaceNameForCustomer()
+	// Validate customer data
+	if customer.PPPoEUsername == nil || *customer.PPPoEUsername == "" {
+		return nil, fmt.Errorf("customer has no PPPoE username configured")
+	}
+
+	// Get the actual active PPPoE interface from MikroTik
+	interfaceName, err := s.getActiveInterfaceForCustomer(customer)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get interface name: %w", err)
+		return nil, fmt.Errorf("failed to get active interface: %w", err)
+	}
+
+	if interfaceName == "" {
+		return nil, fmt.Errorf("customer is not currently connected (no active PPPoE session)")
 	}
 
 	// Create monitor context
@@ -99,6 +110,7 @@ func (s *OnDemandTrafficService) StartMonitoring(ctx context.Context, customerID
 		Cancel:        cancel,
 		Clients:       1,
 		Observers:     make(map[chan domain.CustomerTrafficData]bool),
+		restartCount:  0,
 	}
 
 	s.mu.Lock()
@@ -108,9 +120,68 @@ func (s *OnDemandTrafficService) StartMonitoring(ctx context.Context, customerID
 	// Start the actual background monitoring for this customer
 	go s.runMonitorLoop(monitorCtx, customer, interfaceName)
 
-	log.Printf("[OnDemand] Started monitoring for customer %s on %s", customer.Name, interfaceName)
+	log.Printf("[OnDemand] Started monitoring for customer %s (%s) on interface %s", 
+		customer.Name, *customer.PPPoEUsername, interfaceName)
 
 	return s.addObserver(ctx, customerID)
+}
+
+// getActiveInterfaceForCustomer finds the active PPPoE interface for a customer
+func (s *OnDemandTrafficService) getActiveInterfaceForCustomer(customer *domain.Customer) (string, error) {
+	if customer.PPPoEUsername == nil || *customer.PPPoEUsername == "" {
+		return "", fmt.Errorf("no PPPoE username configured")
+	}
+
+	username := strings.ToLower(strings.TrimSpace(*customer.PPPoEUsername))
+	
+	// Query MikroTik for active PPPoE interfaces
+	reply, err := s.client.Run(
+		"/interface/print",
+		"?type=pppoe-in",
+		"?running=yes",
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to query MikroTik interfaces: %w", err)
+	}
+
+	// Search for interface matching this username
+	for _, re := range reply.Re {
+		interfaceName := re.Map["name"]
+		if interfaceName == "" {
+			continue
+		}
+
+		// Extract username from interface name
+		// Format: <pppoe-username>
+		extractedUser := extractPPPoEUsername(interfaceName)
+		if extractedUser == "" {
+			continue
+		}
+
+		extractedUser = strings.ToLower(strings.TrimSpace(extractedUser))
+		
+		if extractedUser == username {
+			log.Printf("[OnDemand] Found active interface '%s' for username '%s'", 
+				interfaceName, username)
+			return interfaceName, nil
+		}
+	}
+
+	return "", fmt.Errorf("no active PPPoE session found for username '%s'", username)
+}
+
+// extractPPPoEUsername extracts username from PPPoE interface name
+func extractPPPoEUsername(interfaceName string) string {
+	// Format: <pppoe-username>
+	if len(interfaceName) < 9 {
+		return ""
+	}
+
+	if strings.HasPrefix(interfaceName, "<pppoe-") && strings.HasSuffix(interfaceName, ">") {
+		return interfaceName[7 : len(interfaceName)-1]
+	}
+
+	return ""
 }
 
 // StopMonitoring decrements client count and stops monitoring if zero
@@ -141,7 +212,7 @@ func (s *OnDemandTrafficService) StopMonitoring(customerID string) {
 		monitor.Cancel()
 		delete(s.activeMonitors, customerID)
 
-		// Close all observers (should be empty if clients=0, but just in case)
+		// Close all observers
 		for ch := range monitor.Observers {
 			close(ch)
 		}
@@ -151,35 +222,107 @@ func (s *OnDemandTrafficService) StopMonitoring(customerID string) {
 	s.mu.Unlock()
 }
 
-// runMonitorLoop runs the actual MikroTik monitoring command
+// runMonitorLoop runs the actual MikroTik monitoring command with auto-restart
 func (s *OnDemandTrafficService) runMonitorLoop(ctx context.Context, customer *domain.Customer, interfaceName string) {
-	trafficChan, err := mikrotik.MonitorTraffic(ctx, s.client, interfaceName)
-	if err != nil {
-		log.Printf("[OnDemand] Failed to start monitor for %s: %v", interfaceName, err)
-
-		// If fails to start, we should probably stop the monitor entirely to clean up
-		s.StopMonitoring(customer.ID)
-		return
-	}
+	maxRestarts := 3
+	restartDelay := 5 * time.Second
 
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("[OnDemand] Monitor context cancelled for %s", customer.Name)
 			return
-		case traffic, ok := <-trafficChan:
-			if !ok {
-				// Stream closed
-				log.Printf("[OnDemand] Traffic stream closed for %s", interfaceName)
-				// If closed unexpectedly, maybe retry? Or just stop.
-				// For now, stop. Client will need to reconnect if they want to restart.
-				s.mu.Lock()
-				if monitor, exists := s.activeMonitors[customer.ID]; exists {
-					monitor.Cancel()
-					delete(s.activeMonitors, customer.ID)
+		default:
+			// Check restart count
+			s.mu.Lock()
+			monitor, exists := s.activeMonitors[customer.ID]
+			if !exists {
+				s.mu.Unlock()
+				return
+			}
+			
+			if monitor.restartCount >= maxRestarts {
+				log.Printf("[OnDemand] Max restart attempts (%d) reached for %s, stopping monitor", 
+					maxRestarts, customer.Name)
+				monitor.Cancel()
+				delete(s.activeMonitors, customer.ID)
+				
+				// Notify observers about disconnection
+				for ch := range monitor.Observers {
+					select {
+					case ch <- domain.CustomerTrafficData{
+						CustomerID:   customer.ID,
+						CustomerName: customer.Name,
+						Timestamp:    time.Now(),
+					}:
+					default:
+					}
+					close(ch)
 				}
 				s.mu.Unlock()
 				return
 			}
+			s.mu.Unlock()
+
+			// Start monitoring stream
+			trafficChan, err := mikrotik.MonitorTraffic(ctx, s.client, interfaceName)
+			if err != nil {
+				log.Printf("[OnDemand] Failed to start monitor for %s on %s: %v", 
+					customer.Name, interfaceName, err)
+				
+				s.mu.Lock()
+				if mon, ok := s.activeMonitors[customer.ID]; ok {
+					mon.restartCount++
+				}
+				s.mu.Unlock()
+				
+				time.Sleep(restartDelay)
+				continue
+			}
+
+			log.Printf("[OnDemand] Monitor stream active for %s on %s", customer.Name, interfaceName)
+
+			// Process traffic data
+			streamClosed := s.processTrafficStream(ctx, customer, trafficChan)
+			
+			if streamClosed {
+				log.Printf("[OnDemand] Stream closed for %s, attempting restart...", customer.Name)
+				
+				s.mu.Lock()
+				if mon, ok := s.activeMonitors[customer.ID]; ok {
+					mon.restartCount++
+				}
+				s.mu.Unlock()
+				
+				time.Sleep(restartDelay)
+			}
+		}
+	}
+}
+
+// processTrafficStream processes traffic data from the stream
+func (s *OnDemandTrafficService) processTrafficStream(
+	ctx context.Context, 
+	customer *domain.Customer, 
+	trafficChan <-chan mikrotik.InterfaceTraffic,
+) bool {
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case traffic, ok := <-trafficChan:
+			if !ok {
+				log.Printf("[OnDemand] Traffic channel closed for %s", customer.Name)
+				return true // Stream closed
+			}
+			
+			// Validate traffic data
+			if traffic.Name == "" {
+				log.Printf("[OnDemand] WARNING: Received traffic data with empty interface name for %s", 
+					customer.Name)
+				continue
+			}
+
 			data := s.mapToCustomerTraffic(customer, traffic)
 			s.publishTrafficData(data)
 		}
@@ -201,7 +344,6 @@ func (s *OnDemandTrafficService) addObserver(ctx context.Context, customerID str
 	s.mu.Unlock()
 
 	// Cleanup routine: remove observer when context is done
-	// This context comes from the WebSocket handler request
 	go func() {
 		<-ctx.Done()
 		s.mu.Lock()
@@ -246,21 +388,18 @@ func (s *OnDemandTrafficService) publishTrafficData(data domain.CustomerTrafficD
 			select {
 			case ch <- data:
 			default:
-				// Skip if channel full to prevent blocking the monitor loop
-				// This is important!
+				// Skip if channel full to prevent blocking
 			}
 		}
 	}
 }
 
 // formatSpeed converts bits per second to human-readable format
-// Copied from old service, should ideally be in utils package
 func formatSpeed(bps string) string {
 	if bps == "" || bps == "0" {
 		return "0 bps"
 	}
-
-	// Implementation same as before...
-	// For brevity assuming it works, or we can copy valid implementation back
-	return bps + " bps" // Simplified for now to save space, real impl below
+	
+	// Simple implementation - use the one from continuous service if available
+	return bps + " bps"
 }

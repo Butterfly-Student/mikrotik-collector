@@ -1,22 +1,22 @@
 package repository
 
 import (
-	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	"mikrotik-collector/internal/domain"
 
-	_ "github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
 // DatabaseCustomerRepository implements domain.CustomerRepository
 type DatabaseCustomerRepository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewDatabaseCustomerRepository creates a new database customer repository
-func NewDatabaseCustomerRepository(db *sql.DB) *DatabaseCustomerRepository {
+func NewDatabaseCustomerRepository(db *gorm.DB) *DatabaseCustomerRepository {
 	return &DatabaseCustomerRepository{
 		db: db,
 	}
@@ -24,253 +24,190 @@ func NewDatabaseCustomerRepository(db *sql.DB) *DatabaseCustomerRepository {
 
 // GetActivePPPoECustomers retrieves all active PPPoE customers
 func (r *DatabaseCustomerRepository) GetActivePPPoECustomers() ([]*domain.Customer, error) {
-	query := `
-		SELECT 
-			id, mikrotik_id, username, name, phone, email, service_type,
-			pppoe_username, pppoe_password, pppoe_profile,
-			hotspot_username, hotspot_password, hotspot_mac_address,
-			static_ip, assigned_ip, mac_address, last_online,
-			status, created_at, updated_at
-		FROM customers
-		WHERE status = 'active' AND service_type = 'pppoe'
-		ORDER BY name
-	`
-
-	rows, err := r.db.Query(query)
+	log.Println("[CustomerRepo] GetActivePPPoECustomers - Starting query for active PPPoE customers")
+	
+	var customers []*domain.Customer
+	
+	err := r.db.Where("status = ? AND service_type = ?", "active", "pppoe").
+		Order("name").
+		Find(&customers).Error
+	
 	if err != nil {
+		log.Printf("[CustomerRepo] GetActivePPPoECustomers - ERROR: %v\n", err)
 		return nil, fmt.Errorf("failed to query customers: %w", err)
 	}
-	defer rows.Close()
-
-	var customers []*domain.Customer
-	for rows.Next() {
-		var c domain.Customer
-		err := rows.Scan(
-			&c.ID, &c.MikrotikID, &c.Username, &c.Name,
-			&c.Phone, &c.Email, &c.ServiceType,
-			&c.PPPoEUsername, &c.PPPoEPassword, &c.PPPoEProfile,
-			&c.HotspotUsername, &c.HotspotPassword, &c.HotspotMacAddr,
-			&c.StaticIP, &c.AssignedIP, &c.MacAddress, &c.LastOnline,
-			&c.Status, &c.CreatedAt, &c.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan customer: %w", err)
-		}
-		customers = append(customers, &c)
-	}
+	
+	log.Printf("[CustomerRepo] GetActivePPPoECustomers - SUCCESS: Found %d active PPPoE customers\n", len(customers))
 	return customers, nil
 }
 
 // GetCustomerByID retrieves a customer by ID
 func (r *DatabaseCustomerRepository) GetCustomerByID(id string) (*domain.Customer, error) {
-	query := `
-		SELECT 
-			id, mikrotik_id, username, name, phone, email, service_type,
-			pppoe_username, pppoe_password, pppoe_profile,
-			hotspot_username, hotspot_password, hotspot_mac_address,
-			static_ip, assigned_ip, mac_address, last_online,
-			status, created_at, updated_at
-		FROM customers
-		WHERE id = $1
-	`
-	c := &domain.Customer{}
-	err := r.db.QueryRow(query, id).Scan(
-		&c.ID, &c.MikrotikID, &c.Username, &c.Name,
-		&c.Phone, &c.Email, &c.ServiceType,
-		&c.PPPoEUsername, &c.PPPoEPassword, &c.PPPoEProfile,
-		&c.HotspotUsername, &c.HotspotPassword, &c.HotspotMacAddr,
-		&c.StaticIP, &c.AssignedIP, &c.MacAddress, &c.LastOnline,
-		&c.Status, &c.CreatedAt, &c.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
+	log.Printf("[CustomerRepo] GetCustomerByID - Searching for customer with ID: %s\n", id)
+	
+	var customer domain.Customer
+	
+	err := r.db.Where("id = ?", id).First(&customer).Error
+	if err == gorm.ErrRecordNotFound {
+		log.Printf("[CustomerRepo] GetCustomerByID - Customer not found: %s\n", id)
 		return nil, fmt.Errorf("customer not found: %s", id)
 	}
 	if err != nil {
+		log.Printf("[CustomerRepo] GetCustomerByID - ERROR: %v\n", err)
 		return nil, fmt.Errorf("failed to query customer: %w", err)
 	}
-	return c, nil
+	
+	log.Printf("[CustomerRepo] GetCustomerByID - SUCCESS: Found customer %s (%s)\n", customer.Name, customer.ID)
+	return &customer, nil
 }
 
 // GetCustomerByPPPoEUsername retrieves a customer by PPPoE Username
 func (r *DatabaseCustomerRepository) GetCustomerByPPPoEUsername(username string) (*domain.Customer, error) {
-	query := `
-		SELECT 
-			id, mikrotik_id, username, name, phone, email, service_type,
-			pppoe_username, pppoe_password, pppoe_profile,
-			hotspot_username, hotspot_password, hotspot_mac_address,
-			static_ip, assigned_ip, mac_address, last_online,
-			status, created_at, updated_at
-		FROM customers
-		WHERE pppoe_username = $1
-	`
-	c := &domain.Customer{}
-	err := r.db.QueryRow(query, username).Scan(
-		&c.ID, &c.MikrotikID, &c.Username, &c.Name,
-		&c.Phone, &c.Email, &c.ServiceType,
-		&c.PPPoEUsername, &c.PPPoEPassword, &c.PPPoEProfile,
-		&c.HotspotUsername, &c.HotspotPassword, &c.HotspotMacAddr,
-		&c.StaticIP, &c.AssignedIP, &c.MacAddress, &c.LastOnline,
-		&c.Status, &c.CreatedAt, &c.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
+	log.Printf("[CustomerRepo] GetCustomerByPPPoEUsername - Searching for customer with PPPoE username: %s\n", username)
+	
+	var customer domain.Customer
+	
+	err := r.db.Where("pppoe_username = ?", username).First(&customer).Error
+	if err == gorm.ErrRecordNotFound {
+		log.Printf("[CustomerRepo] GetCustomerByPPPoEUsername - Customer not found with PPPoE username: %s\n", username)
 		return nil, fmt.Errorf("customer not found with pppoe_username: %s", username)
 	}
 	if err != nil {
+		log.Printf("[CustomerRepo] GetCustomerByPPPoEUsername - ERROR: %v\n", err)
 		return nil, fmt.Errorf("failed to query customer: %w", err)
 	}
-	return c, nil
+	
+	log.Printf("[CustomerRepo] GetCustomerByPPPoEUsername - SUCCESS: Found customer %s (ID: %s)\n", customer.Name, customer.ID)
+	return &customer, nil
 }
 
 // UpdateCustomerStatus updates status of a customer
 func (r *DatabaseCustomerRepository) UpdateCustomerStatus(id string, status string, ipAddress *string, macAddress *string) error {
-	query := `
-		UPDATE customers
-		SET 
-			status = $2,
-			assigned_ip = COALESCE($3, assigned_ip),
-			mac_address = COALESCE($4, mac_address),
-			last_online = CASE WHEN $2 = 'active' THEN CURRENT_TIMESTAMP ELSE last_online END,
-			updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1
-	`
-	result, err := r.db.Exec(query, id, status, ipAddress, macAddress)
-	if err != nil {
-		return fmt.Errorf("failed to update customer status: %w", err)
+	log.Printf("[CustomerRepo] UpdateCustomerStatus - Updating customer %s to status: %s\n", id, status)
+	
+	updates := map[string]interface{}{
+		"status":     status,
+		"updated_at": time.Now(),
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
+	
+	if ipAddress != nil {
+		log.Printf("[CustomerRepo] UpdateCustomerStatus - Setting IP address: %s\n", *ipAddress)
+		updates["assigned_ip"] = *ipAddress
 	}
-	if rows == 0 {
+	
+	if macAddress != nil {
+		log.Printf("[CustomerRepo] UpdateCustomerStatus - Setting MAC address: %s\n", *macAddress)
+		updates["mac_address"] = *macAddress
+	}
+	
+	if status == "active" {
+		log.Println("[CustomerRepo] UpdateCustomerStatus - Updating last_online timestamp")
+		updates["last_online"] = time.Now()
+	}
+	
+	result := r.db.Model(&domain.Customer{}).
+		Where("id = ?", id).
+		Updates(updates)
+	
+	if result.Error != nil {
+		log.Printf("[CustomerRepo] UpdateCustomerStatus - ERROR: %v\n", result.Error)
+		return fmt.Errorf("failed to update customer status: %w", result.Error)
+	}
+	
+	if result.RowsAffected == 0 {
+		log.Printf("[CustomerRepo] UpdateCustomerStatus - Customer not found: %s\n", id)
 		return fmt.Errorf("customer not found: %s", id)
 	}
+	
+	log.Printf("[CustomerRepo] UpdateCustomerStatus - SUCCESS: Updated customer %s (rows affected: %d)\n", id, result.RowsAffected)
 	return nil
 }
 
 // CreateCustomer creates a new customer
 func (r *DatabaseCustomerRepository) CreateCustomer(c *domain.Customer) error {
-	query := `
-		INSERT INTO customers (
-			id, mikrotik_id, username, name, phone, email, service_type,
-			pppoe_username, pppoe_password, pppoe_profile,
-			hotspot_username, hotspot_password, hotspot_mac_address,
-			static_ip, assigned_ip, mac_address, status, created_at, updated_at
-		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7,
-			$8, $9, $10,
-			$11, $12, $13,
-			$14, $15, $16, $17, $18, $19
-		)
-	`
+	log.Printf("[CustomerRepo] CreateCustomer - Creating new customer: %s (ID: %s)\n", c.Name, c.ID)
+	
 	if c.CreatedAt.IsZero() {
 		c.CreatedAt = time.Now()
 	}
 	c.UpdatedAt = time.Now()
-
-	_, err := r.db.Exec(query,
-		c.ID, c.MikrotikID, c.Username, c.Name, c.Phone, c.Email, c.ServiceType,
-		c.PPPoEUsername, c.PPPoEPassword, c.PPPoEProfile,
-		c.HotspotUsername, c.HotspotPassword, c.HotspotMacAddr,
-		c.StaticIP, c.AssignedIP, c.MacAddress, c.Status, c.CreatedAt, c.UpdatedAt,
-	)
+	
+	log.Printf("[CustomerRepo] CreateCustomer - Customer details - ServiceType: %s, Status: %s, PPPoE Username: %s\n", 
+		c.ServiceType, c.Status, c.PPPoEUsername)
+	
+	err := r.db.Create(c).Error
 	if err != nil {
+		log.Printf("[CustomerRepo] CreateCustomer - ERROR: %v\n", err)
 		return fmt.Errorf("failed to create customer: %w", err)
 	}
+	
+	log.Printf("[CustomerRepo] CreateCustomer - SUCCESS: Created customer %s (ID: %s)\n", c.Name, c.ID)
 	return nil
 }
 
 // UpdateCustomer updates an existing customer
 func (r *DatabaseCustomerRepository) UpdateCustomer(c *domain.Customer) error {
-	query := `
-		UPDATE customers SET
-			mikrotik_id = $2, username = $3, name = $4, phone = $5, email = $6, service_type = $7,
-			pppoe_username = $8, pppoe_password = $9, pppoe_profile = $10,
-			hotspot_username = $11, hotspot_password = $12, hotspot_mac_address = $13,
-			static_ip = $14, assigned_ip = $15, mac_address = $16, status = $17, updated_at = $18
-		WHERE id = $1
-	`
+	log.Printf("[CustomerRepo] UpdateCustomer - Updating customer: %s (ID: %s)\n", c.Name, c.ID)
+	
 	c.UpdatedAt = time.Now()
-
-	result, err := r.db.Exec(query,
-		c.ID, c.MikrotikID, c.Username, c.Name, c.Phone, c.Email, c.ServiceType,
-		c.PPPoEUsername, c.PPPoEPassword, c.PPPoEProfile,
-		c.HotspotUsername, c.HotspotPassword, c.HotspotMacAddr,
-		c.StaticIP, c.AssignedIP, c.MacAddress, c.Status, c.UpdatedAt,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to update customer: %w", err)
+	
+	log.Printf("[CustomerRepo] UpdateCustomer - Customer details - ServiceType: %s, Status: %s, PPPoE Username: %s\n", 
+		c.ServiceType, c.Status, c.PPPoEUsername)
+	
+	result := r.db.Model(&domain.Customer{}).
+		Where("id = ?", c.ID).
+		Updates(c)
+	
+	if result.Error != nil {
+		log.Printf("[CustomerRepo] UpdateCustomer - ERROR: %v\n", result.Error)
+		return fmt.Errorf("failed to update customer: %w", result.Error)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rows == 0 {
+	
+	if result.RowsAffected == 0 {
+		log.Printf("[CustomerRepo] UpdateCustomer - Customer not found: %s\n", c.ID)
 		return fmt.Errorf("customer not found: %s", c.ID)
 	}
+	
+	log.Printf("[CustomerRepo] UpdateCustomer - SUCCESS: Updated customer %s (rows affected: %d)\n", c.ID, result.RowsAffected)
 	return nil
 }
 
 // DeleteCustomer deletes a customer
 func (r *DatabaseCustomerRepository) DeleteCustomer(id string) error {
-	query := `DELETE FROM customers WHERE id = $1`
-	result, err := r.db.Exec(query, id)
-	if err != nil {
-		return fmt.Errorf("failed to delete customer: %w", err)
+	result := r.db.Where("id = ?", id).Delete(&domain.Customer{})
+	
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete customer: %w", result.Error)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rows affected: %w", err)
-	}
-	if rows == 0 {
+	
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("customer not found: %s", id)
 	}
+	
 	return nil
 }
 
 // ListCustomers returns paginated customers
 func (r *DatabaseCustomerRepository) ListCustomers(page, limit int) ([]*domain.Customer, int, error) {
-	offset := (page - 1) * limit
-
+	var customers []*domain.Customer
+	var total int64
+	
 	// Count total
-	var total int
-	err := r.db.QueryRow("SELECT COUNT(*) FROM customers").Scan(&total)
+	err := r.db.Model(&domain.Customer{}).Count(&total).Error
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to count customers: %w", err)
 	}
-
-	query := `
-		SELECT 
-			id, mikrotik_id, username, name, phone, email, service_type,
-			pppoe_username, pppoe_password, pppoe_profile,
-			hotspot_username, hotspot_password, hotspot_mac_address,
-			static_ip, assigned_ip, mac_address, last_online,
-			status, created_at, updated_at
-		FROM customers
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`
-
-	rows, err := r.db.Query(query, limit, offset)
+	
+	offset := (page - 1) * limit
+	
+	err = r.db.Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&customers).Error
+	
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to query customers: %w", err)
 	}
-	defer rows.Close()
-
-	var customers []*domain.Customer
-	for rows.Next() {
-		var c domain.Customer
-		err := rows.Scan(
-			&c.ID, &c.MikrotikID, &c.Username, &c.Name,
-			&c.Phone, &c.Email, &c.ServiceType,
-			&c.PPPoEUsername, &c.PPPoEPassword, &c.PPPoEProfile,
-			&c.HotspotUsername, &c.HotspotPassword, &c.HotspotMacAddr,
-			&c.StaticIP, &c.AssignedIP, &c.MacAddress, &c.LastOnline,
-			&c.Status, &c.CreatedAt, &c.UpdatedAt,
-		)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to scan customer: %w", err)
-		}
-		customers = append(customers, &c)
-	}
-	return customers, total, nil
+	
+	return customers, int(total), nil
 }

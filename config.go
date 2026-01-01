@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -69,7 +70,7 @@ func LoadConfig() *Config {
 		EnableTrafficMonitor:  getEnvBool("ENABLE_TRAFFIC_MONITOR", true),
 		MaxConcurrentMonitors: getEnvInt("MAX_CONCURRENT_MONITORS", 50),
 		AutoStartMonitoring:   getEnvBool("AUTO_START_MONITORING", false), // NEW
-		
+
 	}
 }
 
@@ -79,6 +80,12 @@ func (c *Config) Validate() error {
 		log.Println("WARNING: MIKROTIK_PASS is not set!")
 	}
 	return nil
+}
+
+// GetDSN returns the Postgre DSN string
+func (c *Config) GetDSN() string {
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Jakarta",
+		c.DBHost, c.DBUser, c.DBPassword, c.DBName, c.DBPort, c.DBSSLMode)
 }
 
 // MikroTikPortInt converts port string to int

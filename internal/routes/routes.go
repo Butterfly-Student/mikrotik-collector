@@ -21,16 +21,6 @@ func SetupRoutes(
 	router.Use(middleware.CORS())
 	router.Use(gin.Recovery())
 
-	// Serve static files from frontend directory
-	router.Static("/css", "./frontend/css")
-	router.Static("/js", "./frontend/js")
-
-	// Serve HTML files
-	router.StaticFile("/", "./frontend/index.html")
-	router.StaticFile("/index.html", "./frontend/index.html")
-	router.StaticFile("/add-customer.html", "./frontend/add-customer.html")
-	router.StaticFile("/edit-customer.html", "./frontend/edit-customer.html")
-
 	// WebSocket endpoint
 	router.GET("/ws", wsHandler.HandleWS)
 

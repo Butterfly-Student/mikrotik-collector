@@ -23,7 +23,7 @@ if (!customerId) {
     });
 
     // Fetch customer data
-    fetch(`/api/customers/${customerId}`)
+    fetch(`${API_BASE}/api/customers/${customerId}`)
         .then(r => r.json())
         .then(resp => {
             if (resp.status === 'success') {
@@ -74,7 +74,7 @@ if (!customerId) {
         }
 
         try {
-            const res = await fetch(`/api/customers/${customerId}`, {
+            const res = await fetch(`${API_BASE}/api/customers/${customerId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json'
@@ -99,7 +99,7 @@ if (!customerId) {
     document.getElementById('delete-btn').addEventListener('click', async () => {
         if (confirm('Are you sure you want to delete this customer? This action cannot be undone.')) {
             try {
-                const res = await fetch(`/api/customers/${customerId}`, {
+                const res = await fetch(`${API_BASE}/api/customers/${customerId}`, {
                     method: 'DELETE'
                 });
 

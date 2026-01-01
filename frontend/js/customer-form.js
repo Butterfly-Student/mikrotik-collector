@@ -30,7 +30,7 @@ form.addEventListener('submit', async (e) => {
     };
 
     try {
-        const res = await fetch('/api/customers', {
+        const res = await fetch(`${API_BASE}/api/customers`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

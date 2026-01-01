@@ -1,7 +1,7 @@
 // Common JavaScript utilities and sidebar logic shared across all pages
 
 // API Base URL
-const API_BASE = window.location.origin;
+const API_BASE = 'http://localhost:8082';
 
 // Load customers in sidebar on every page
 document.addEventListener('DOMContentLoaded', () => {
@@ -35,7 +35,7 @@ function fetchCustomers() {
     const listContainer = document.getElementById('customer-list');
     if (!listContainer) return;
 
-    fetch('/api/customers')
+    fetch(`${API_BASE}/api/customers`)
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
@@ -66,7 +66,7 @@ function renderSidebarCustomers(customers) {
 
         const el = document.createElement('a');
         el.className = 'customer-item';
-        el.href = '/?customer_id=' + c.id;
+        el.href = 'index.html?customer_id=' + c.id;
         el.setAttribute('data-id', c.id);
         el.setAttribute('data-name', c.name);
 
@@ -117,7 +117,7 @@ function renderSidebarCustomers(customers) {
 // Update system stats in topbar
 async function updateSystemStats() {
     try {
-        const response = await fetch('/api/monitor/status');
+        const response = await fetch(`${API_BASE}/api/monitor/status`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
 

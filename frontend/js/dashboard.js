@@ -4,23 +4,23 @@ let trafficWs = null;
 let selectedCustomerLocal = null;
 let currentTrafficData = {};
 
-// Use current host
-const WS_URL_PROTO = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const WS_URL = `${WS_URL_PROTO}//${window.location.host}/ws`;
+// Hardcoded for development to avoid port mismatch with Live Server
+const WS_URL = 'ws://localhost:8082/ws';
+const API_BASE_URL = 'http://localhost:8082';
 
 // Global select function for sidebar to call
 window.selectCustomer = function (customer) {
     selectedCustomerLocal = customer;
-    
+
     // Close existing traffic WebSocket if any
     if (trafficWs) {
         trafficWs.close();
         trafficWs = null;
     }
-    
+
     // Render initial view
     renderInitialDetailView();
-    
+
     // Start traffic monitoring for this customer if they're active
     if (customer.status === 'active') {
         connectTrafficWebSocket(customer.id);
@@ -44,13 +44,11 @@ function connectWebSocket() {
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            
+
             // Handle different message types
             if (data.type === 'customer_list') {
-                // Initial customer list (not used in current implementation)
                 console.log('Received customer list:', data.data);
             } else if (data.type === 'traffic_update') {
-                // Global traffic updates
                 handleTrafficUpdate(data.data);
             }
         } catch (e) {
@@ -60,17 +58,17 @@ function connectWebSocket() {
 }
 
 function connectTrafficWebSocket(customerId) {
-    const trafficWsUrl = `${WS_URL_PROTO}//${window.location.host}/api/customers/${customerId}/traffic/ws`;
+    const trafficWsUrl = `ws://localhost:8082/api/customers/${customerId}/traffic/ws`;
     trafficWs = new WebSocket(trafficWsUrl);
-    
+
     trafficWs.onopen = () => {
         console.log('Connected to traffic stream for customer:', customerId);
     };
-    
+
     trafficWs.onclose = () => {
         console.log('Traffic WebSocket closed');
     };
-    
+
     trafficWs.onmessage = (event) => {
         try {
             const msg = JSON.parse(event.data);
@@ -84,7 +82,7 @@ function connectTrafficWebSocket(customerId) {
             console.error('Error parsing traffic WS message', e);
         }
     };
-    
+
     trafficWs.onerror = (error) => {
         console.error('Traffic WebSocket error:', error);
     };
@@ -92,9 +90,9 @@ function connectTrafficWebSocket(customerId) {
 
 function handleTrafficUpdate(data) {
     if (!data.customer_id) return;
-    
+
     currentTrafficData[data.customer_id] = data;
-    
+
     if (selectedCustomerLocal && selectedCustomerLocal.id === data.customer_id) {
         renderTrafficView(data);
     }
@@ -103,19 +101,43 @@ function handleTrafficUpdate(data) {
 function showTrafficError(message) {
     const container = document.getElementById('main-display');
     if (!container) return;
-    
-    const errorHtml = `
-        <div class="empty-state" style="height: 40vh;">
-            <i class="fa-solid fa-exclamation-triangle" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
-            <h3>Monitoring Error</h3>
-            <p>${message}</p>
+
+    const c = selectedCustomerLocal;
+    const initials = c.name.substring(0, 2).toUpperCase();
+
+    container.innerHTML = `
+        <div class="detail-view">
+            <div class="customer-header">
+                <div class="profile-card">
+                    <div class="profile-avatar-large">${initials}</div>
+                    <div class="profile-info">
+                        <h1>${c.name}</h1>
+                        <div class="profile-badges">
+                            <span class="badge badge-type">${c.service_type}</span>
+                            <span class="badge badge-status-offline">Error</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <a href="/edit-customer.html?id=${c.id}" class="btn btn-secondary">
+                        <i class="fa-solid fa-pen"></i> Edit
+                    </a>
+                    <button class="btn btn-primary" onclick="pingCustomer('${c.id}')">
+                        <i class="fa-solid fa-satellite-dish"></i> Ping
+                    </button>
+                </div>
+            </div>
+
+            <div class="empty-state" style="height: 40vh;">
+                <i class="fa-solid fa-exclamation-triangle" style="font-size: 3rem; color: var(--danger); margin-bottom: 16px;"></i>
+                <h3>Monitoring Error</h3>
+                <p>${message}</p>
+                <p style="margin-top: 12px; font-size: 0.9rem; color: var(--gray-600);">
+                    Make sure the customer has a valid PPPoE username and is currently connected.
+                </p>
+            </div>
         </div>
     `;
-    
-    const existingError = document.querySelector('.empty-state');
-    if (existingError) {
-        existingError.innerHTML = errorHtml;
-    }
 }
 
 function updateConnectionStatus(connected) {
@@ -136,7 +158,8 @@ function updateConnectionStatus(connected) {
 
 async function updateSystemStats() {
     try {
-        const response = await fetch(`/api/monitor/status`);
+        const baseUrl = typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:8082';
+        const response = await fetch(`${baseUrl}/api/monitor/status`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
 
@@ -146,7 +169,6 @@ async function updateSystemStats() {
         if (mCount) mCount.textContent = data.monitor_count || 0;
     } catch (error) {
         console.error('Failed to load stats', error);
-        // Set default values on error
         const cCount = document.getElementById('total-customers');
         const mCount = document.getElementById('active-monitors');
         if (cCount) cCount.textContent = '0';
@@ -181,7 +203,7 @@ function renderInitialDetailView() {
                     </div>
                 </div>
                 <div class="action-buttons">
-                     <a href="/customers/edit/${c.id}" class="btn btn-secondary">
+                     <a href="/edit-customer.html?id=${c.id}" class="btn btn-secondary">
                         <i class="fa-solid fa-pen"></i> Edit
                      </a>
                      <button class="btn btn-primary" onclick="pingCustomer('${c.id}')">
@@ -257,7 +279,7 @@ function renderTrafficView(data) {
                     </div>
                 </div>
                 <div class="action-buttons">
-                    <a href="/customers/edit/${selectedCustomerLocal.id}" class="btn btn-secondary">
+                    <a href="/edit-customer.html?id=${selectedCustomerLocal.id}" class="btn btn-secondary">
                         <i class="fa-solid fa-pen"></i> Edit
                     </a>
                     <button class="btn btn-primary" onclick="pingCustomer('${data.customer_id}')">
@@ -370,7 +392,7 @@ function startPingWs(customerId) {
     if (pingWs) pingWs.close();
     clientStats = { sent: 0, received: 0 };
 
-    const wsUrl = `${WS_URL_PROTO}//${window.location.host}/api/customers/${customerId}/ping/ws`;
+    const wsUrl = `ws://localhost:8082/api/customers/${customerId}/ping/ws`;
     pingWs = new WebSocket(wsUrl);
 
     pingWs.onopen = () => console.log("Ping WS Connected");
@@ -461,13 +483,14 @@ const urlParams = new URLSearchParams(window.location.search);
 const initialId = urlParams.get('customer_id');
 
 if (initialId) {
-    fetch(`/api/customers/${initialId}`)
+    const baseUrl = typeof API_BASE !== 'undefined' ? API_BASE : 'http://localhost:8082';
+    fetch(`${baseUrl}/api/customers/${initialId}`)
         .then(r => r.json())
         .then(d => {
             if (d.status === 'success') {
                 selectedCustomerLocal = d.data;
                 renderInitialDetailView();
-                
+
                 // Start traffic monitoring if active
                 if (d.data.status === 'active') {
                     connectTrafficWebSocket(d.data.id);
