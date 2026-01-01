@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS customers (
     last_online TIMESTAMPTZ,
     
     -- Status
-    status customer_status DEFAULT 'active',
+    status customer_status DEFAULT 'inactive',
     
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -75,9 +75,9 @@ CREATE TRIGGER update_customers_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Insert sample data for testing
-INSERT INTO customers (mikrotik_id, username, name, service_type, pppoe_username, pppoe_password, status)
+INSERT INTO customers (mikrotik_id, username, name, service_type, pppoe_username, pppoe_password)
 VALUES 
-    ('mikrotik-001', 'customer1', 'Test Customer 1', 'pppoe', 'tes', '1122', 'active'),
-    ('mikrotik-001', 'customer2', 'Test Customer 2', 'pppoe', 'tes1', '1122', 'active'),
-    ('mikrotik-001', 'customer3', 'Test Customer 3', 'hotspot', NULL, NULL, 'active')
+    ('mikrotik-001', 'customer1', 'Test Customer 1', 'pppoe', 'tes', '1122'),
+    ('mikrotik-001', 'customer2', 'Test Customer 2', 'pppoe', 'tes1', '1122'),
+    ('mikrotik-001', 'customer3', 'Test Customer 3', 'hotspot', NULL, NULL)
 ON CONFLICT DO NOTHING;

@@ -7,31 +7,31 @@ import (
 
 // Customer represents a customer in the system
 type Customer struct {
-	ID          string  `json:"id"`
-	MikrotikID  string  `json:"mikrotik_id"`
-	Username    string  `json:"username"`
-	Name        string  `json:"name"`
-	Phone       *string `json:"phone"`
-	Email       *string `json:"email"`
-	ServiceType string  `json:"service_type"` // pppoe, hotspot, static_ip
+	ID          string  `json:"id" gorm:"primaryKey"`
+	MikrotikID  string  `json:"mikrotik_id" gorm:"column:mikrotik_id"`
+	Username    string  `json:"username" gorm:"column:username"`
+	Name        string  `json:"name" gorm:"column:name"`
+	Phone       *string `json:"phone" gorm:"column:phone"`
+	Email       *string `json:"email" gorm:"column:email"`
+	ServiceType string  `json:"service_type" gorm:"column:service_type"` // pppoe, hotspot, static_ip
 
 	// PPPoE specific
-	PPPoEUsername *string `json:"pppoe_username"`
-	PPPoEPassword *string `json:"pppoe_password"`
-	PPPoEProfile  *string `json:"pppoe_profile"`
+	PPPoEUsername *string `json:"pppoe_username" gorm:"column:pppoe_username"`
+	PPPoEPassword *string `json:"pppoe_password" gorm:"column:pppoe_password"`
+	PPPoEProfile  *string `json:"pppoe_profile" gorm:"column:pppoe_profile"`
 
 	// Hotspot specific
-	HotspotUsername *string `json:"hotspot_username"`
-	HotspotPassword *string `json:"hotspot_password"`
-	HotspotMacAddr  *string `json:"hotspot_mac_addr"`
+	HotspotUsername *string `json:"hotspot_username" gorm:"column:hotspot_username"`
+	HotspotPassword *string `json:"hotspot_password" gorm:"column:hotspot_password"`
+	HotspotMacAddr  *string `json:"hotspot_mac_addr" gorm:"column:hotspot_mac_addr"`
 
 	// Static IP
-	StaticIP *string `json:"static_ip"`
+	StaticIP *string `json:"static_ip" gorm:"column:static_ip"`
 
 	// Network info
-	AssignedIP *string    `json:"assigned_ip"`
-	MacAddress *string    `json:"mac_address"`
-	LastOnline *time.Time `json:"last_online"`
+	AssignedIP *string    `json:"assigned_ip" gorm:"column:assigned_ip"`
+	MacAddress *string    `json:"mac_address" gorm:"column:mac_address"`
+	LastOnline *time.Time `json:"last_online" gorm:"column:last_online"`
 
 	Status    string    `json:"status"` // active, suspended, inactive, pending
 	CreatedAt time.Time `json:"created_at"`

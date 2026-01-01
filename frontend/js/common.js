@@ -129,3 +129,41 @@ async function updateSystemStats() {
         console.error('Failed to load stats', error);
     }
 }
+
+// Update specific customer status in sidebar (Real-time)
+function updateCustomerStatusInSidebar(customerId, status) {
+    const item = document.querySelector(`.customer-item[data-id="${customerId}"]`);
+    if (!item) return;
+
+    // Map backend status to frontend status if needed
+    // Backend sends: "connected", "disconnected"
+    // Frontend uses: "active", "inactive"
+    let displayStatus = status;
+    let cssClass = 'offline';
+
+    if (status === 'connected' || status === 'active') {
+        displayStatus = 'active';
+        cssClass = 'online';
+    } else if (status === 'disconnected' || status === 'inactive') {
+        displayStatus = 'inactive';
+        cssClass = 'offline';
+    }
+
+    // Update status dot
+    const dot = item.querySelector('.status-dot');
+    if (dot) {
+        dot.className = `status-dot ${cssClass}`;
+    }
+
+    // Update status text
+    const details = item.querySelector('.customer-details');
+    if (details) {
+        // preserve service type if possible, or just update status
+        // Text is likely: "active - pppoe"
+        const text = details.textContent;
+        const parts = text.split('-');
+        let serviceType = parts.length > 1 ? parts[1].trim() : 'N/A';
+        details.innerHTML = `<span class="status-dot ${cssClass}"></span> ${displayStatus} - ${serviceType}`;
+    }
+}
+window.updateCustomerStatusInSidebar = updateCustomerStatusInSidebar;

@@ -50,6 +50,8 @@ function connectWebSocket() {
                 console.log('Received customer list:', data.data);
             } else if (data.type === 'traffic_update') {
                 handleTrafficUpdate(data.data);
+            } else if (data.type === 'pppoe_event') {
+                handlePPPoEEvent(data);
             }
         } catch (e) {
             console.error('Error parsing WS message', e);
@@ -95,6 +97,44 @@ function handleTrafficUpdate(data) {
 
     if (selectedCustomerLocal && selectedCustomerLocal.id === data.customer_id) {
         renderTrafficView(data);
+    }
+}
+
+function handlePPPoEEvent(data) {
+    console.log('PPPoE Event:', data);
+
+    // Update sidebar
+    if (window.updateCustomerStatusInSidebar) {
+        window.updateCustomerStatusInSidebar(data.customer_id, data.status);
+    }
+
+    // Update main view if this customer is selected
+    if (selectedCustomerLocal && selectedCustomerLocal.id === data.customer_id) {
+        // Update local object
+        if (data.status === 'connected') {
+            selectedCustomerLocal.status = 'active';
+            selectedCustomerLocal.assigned_ip = data.ip; // Update IP if provided
+        } else {
+            selectedCustomerLocal.status = 'inactive';
+        }
+
+        // Re-render view to show Online/Offline state
+        // This will trigger "Waiting for Data..." spinner if online, 
+        // or "Customer Offline" empty state if offline.
+        renderInitialDetailView();
+
+        // Manage traffic connection
+        if (selectedCustomerLocal.status === 'active') {
+            // Give a slight delay to allow backend to switch context if needed
+            setTimeout(() => {
+                connectTrafficWebSocket(selectedCustomerLocal.id);
+            }, 500);
+        } else {
+            if (trafficWs) {
+                trafficWs.close();
+                trafficWs = null;
+            }
+        }
     }
 }
 
@@ -176,6 +216,28 @@ async function updateSystemStats() {
     }
 }
 
+// Format bits per second to human readable format
+function formatBits(bits) {
+    let value = parseInt(bits, 10);
+    if (isNaN(value)) return '0 bps';
+    if (value === 0) return '0 bps';
+
+    const units = ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'];
+    let unitIndex = 0;
+
+    while (value >= 1000 && unitIndex < units.length - 1) {
+        value /= 1000;
+        unitIndex++;
+    }
+
+    // Determine decimal places: 0 for bps, 1 for kbps, 2 for others
+    let decimals = 2;
+    if (unitIndex === 0) decimals = 0;
+    else if (unitIndex === 1) decimals = 1;
+
+    return `${value.toFixed(decimals)} ${units[unitIndex]}`;
+}
+
 // --- Rendering Logic ---
 
 function renderInitialDetailView() {
@@ -235,19 +297,33 @@ function renderTrafficView(data) {
     if (!selectedCustomerLocal) return;
     if (data.customer_id && selectedCustomerLocal.id !== data.customer_id) return;
 
-    if (!data.download_speed) {
+    if (!data.download_speed && !data.rx_bits_per_second) {
         renderInitialDetailView();
         return;
     }
 
     const container = document.getElementById('main-display');
 
-    const dl = data.download_speed.split(' ');
-    const ul = data.upload_speed.split(' ');
-    const dlVal = dl[0];
-    const dlUnit = dl[1] || 'bps';
-    const ulVal = ul[0];
-    const ulUnit = ul[1] || 'bps';
+    // Use raw bits if available, otherwise try to parse from string
+    let dlVal, dlUnit, ulVal, ulUnit;
+
+    if (data.rx_bits_per_second && data.tx_bits_per_second) {
+        const dlFormatted = formatBits(data.rx_bits_per_second).split(' ');
+        const ulFormatted = formatBits(data.tx_bits_per_second).split(' ');
+        dlVal = dlFormatted[0];
+        dlUnit = dlFormatted[1];
+        ulVal = ulFormatted[0];
+        ulUnit = ulFormatted[1];
+    } else {
+        // Fallback to old split method if raw bits missing
+        const dl = (data.download_speed || '0 bps').split(' ');
+        const ul = (data.upload_speed || '0 bps').split(' ');
+        dlVal = dl[0];
+        dlUnit = dl[1] || 'bps';
+        ulVal = ul[0];
+        ulUnit = ul[1] || 'bps';
+    }
+
     const initials = (data.customer_name || selectedCustomerLocal.name).substring(0, 2).toUpperCase();
 
     // Check if we are already in view (simple check)
